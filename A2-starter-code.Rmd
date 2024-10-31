@@ -1,0 +1,77 @@
+---
+title: "A2 Sample"
+author: "John Zhang & Yaning Jin"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, include=TRUE, eval=TRUE)
+required_packages <- c(
+  "lubridate", "sf", "tidyverse"
+  # include any packages to be installed here
+) 
+for (p in required_packages) { # install if missing
+  if (!require(p, character.only = TRUE)) {
+    install.packages(p, character.only = TRUE)
+  }
+}
+library(tidyverse)
+library(sf)
+# you are welcome to use either the CSV file or the GeoJSON file
+# GeoJSON format maybe useful if you would like to combine
+# an external geospatial dataset
+bike_thefts_csv <- read_csv("data/Bicycle_Thefts_Open_Data.csv") |>
+  mutate(
+    occurence_date = as_date(
+      OCC_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
+    ),
+    report_date = as_date(
+      REPORT_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
+    )
+  )
+bike_thefts_sf <- read_sf("data/Bicycle_Thefts_Open_Data.geojson") |>
+  mutate(
+    occurence_date = as_date(
+      OCC_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
+    ),
+    report_date = as_date(
+      REPORT_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
+    )
+  )
+```
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Load the dataset
+bike_thefts <- read.csv("data/Bicycle_Thefts_Open_Data.csv")
+
+# Count thefts by neighborhood and select top 10
+top_neighborhoods <- bike_thefts %>%
+  count(NEIGHBOURHOOD_158, sort = TRUE) %>%
+  top_n(10, wt = n)
+
+# Plot top neighborhoods with highest theft rates
+ggplot(top_neighborhoods, aes(x = reorder(NEIGHBOURHOOD_158, n), y = n)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top 10 Neighborhoods for Bicycle Thefts in Toronto",
+       x = "Neighborhood", y = "Number of Thefts") +
+  theme_minimal()
+
+# Count thefts by bike type
+bike_type_counts <- bike_thefts %>%
+  count(BIKE_TYPE, sort = TRUE)
+
+# Plot distribution of bike thefts by type
+ggplot(bike_type_counts, aes(x = reorder(BIKE_TYPE, n), y = n)) +
+  geom_bar(stat = "identity", fill = "coral") +
+  coord_flip() +
+  labs(title = "Distribution of Bicycle Thefts by Bike Type",
+       x = "Bike Type", y = "Number of Thefts") +
+  theme_minimal()
+
+```
+
