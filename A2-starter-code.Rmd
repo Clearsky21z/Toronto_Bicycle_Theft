@@ -1,11 +1,19 @@
 ---
-title: "A2 Sample"
-author: "John Zhang & Yaning Jin"
-output: pdf_document
+title: "Understanding Bicycle Theft Patterns in Toronto"
+subtitle: "A Guide for Cyclists"
+author: 
+  - John Zhang
+  - Junhan Zhang
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
 ---
-
+\newpage
+# Introduction
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo=FALSE, include=TRUE, eval=TRUE)
+knitr::opts_chunk$set(echo = FALSE, include = TRUE, eval = TRUE, warning = FALSE, message = FALSE)
 required_packages <- c(
   "lubridate", "sf", "tidyverse"
   # include any packages to be installed here
@@ -29,16 +37,151 @@ bike_thefts_csv <- read_csv("data/Bicycle_Thefts_Open_Data.csv") |>
       REPORT_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
     )
   )
-bike_thefts_sf <- read_sf("data/Bicycle_Thefts_Open_Data.geojson") |>
+```
+Bicycle theft is a persistent problem in Toronto, affecting thousands of cyclists every year. For individual cyclists, losing a bike can be a significant financial setback and a disruption to their daily routine. For the broader cycling community, high theft rates create a sense of insecurity that can discourage cycling as a sustainable mode of transportation. The Toronto Police Service has been recording data on bicycle thefts, providing a valuable dataset that allows for an in-depth analysis of theft patterns. Commissioned by the Cycle Toronto Association, this analysis seeks to identify actionable insights that can help cyclists make safer choices when it comes to bike parking, timing, and security measures.
+This report examines four critical aspects of bicycle theft in Toronto. First, we explore where bike theft is most concentrated across the city, highlighting areas of highest risk. Next, we look at seasonal and monthly trends in bike theft, revealing when bikes are most vulnerable. Then, we investigate the types of premises where thefts are most likely to occur, alongside the times of day associated with the highest risk. Finally, we analyze which types and values of bikes are most frequently targeted by thieves. Together, these insights provide a comprehensive overview of bike theft in Toronto, equipping cyclists with the knowledge to protect their bikes effectively.
+
+# Where Are the Theft Hotspots?
+```{r}
+# Install packages if not already installed
+if (!requireNamespace("ggmap", quietly = TRUE)) install.packages("ggmap")
+if (!requireNamespace("ggplot2", quietly = TRUE)) install.packages("ggplot2")
+if (!requireNamespace("dplyr", quietly = TRUE)) install.packages("dplyr")
+
+# Load the libraries
+library(ggmap)
+library(ggplot2)
+library(dplyr)
+
+# Register your Google API key (optional, only if you want a Google Maps background)
+register_google(key = "AIzaSyDKJKYxJrvxRV5N63gxB4dPEtevHldXTmE")
+
+# Load the dataset
+bike_thefts <- read.csv("data/Bicycle_Thefts_Open_Data.csv")
+
+# Filter out rows with missing or zero coordinates
+bike_thefts <- bike_thefts %>%
+  filter(LONG_WGS84 != 0 & LAT_WGS84 != 0)
+
+# Define the map area for Toronto
+toronto_map <- get_map(location = c(lon = -79.3832, lat = 43.6532), zoom = 12, source = "google", maptype = "terrain")
+
+# Create the density heatmap with increased transparency
+ggmap(toronto_map) +
+  stat_density2d(
+    aes(x = LONG_WGS84, y = LAT_WGS84, fill = ..level.., alpha = ..level..),
+    size = 0.5, bins = 30, data = bike_thefts, geom = "polygon"
+  ) +
+  scale_fill_gradient(low = "yellow", high = "red", name = "Theft Density Level") +
+  scale_alpha(range = c(0.176, 0.256), guide = "none") + # Increased transparency
+  labs(title = "Bicycle Theft Density Heatmap in Toronto") +
+  theme_minimal()
+```
+
+Our analysis begins by examining the geographical distribution of bike thefts across Toronto. This Toronto bicycle theft density heatmap shows high-theft areas concentrated in the downtown core and surrounding neighborhoods such as the Entertainment District, Trinity-Bellwoods, and Kensington Market—locations with high foot traffic and frequent bicycle use. The commercial and entertainment activities in the downtown area attract many cyclists and visitors, increasing bike parking density and providing more theft opportunities. The map also reveals a trend of theft incidents clustering around public transit hubs, shopping centers, and landmarks, where the high demand for bike parking is often met with insufficient monitoring and security measures, raising the risk of theft. Contributing factors may include the accessibility of these areas and inadequate surveillance, making them more vulnerable to theft. Cyclists are advised to exercise caution in these hotspot areas and take additional safety measures, such as parking in well-lit, monitored locations, avoiding high-foot-traffic theft-prone zones, and using high-strength locks when parking. However, while location is crucial, the timing of bike thefts also plays a significant role in risk assessment.
+
+# When Are Bikes Most at Risk?
+Beyond knowing where thefts are likely to occur, it is also important to understand when they are most prevalent. By examining monthly theft counts across the top five neighborhoods with the highest number of reported incidents, a clear seasonal trend emerges. Bike thefts peak during the summer months, particularly between June and August. This pattern likely correlates with the increase in cycling activity during warmer weather, creating more opportunities for theft.
+![This is the caption!](data/WechatIMG643.jpg)
+
+```{r}
+# Load the data
+bicycle_data <- read.csv('data/Bicycle_Thefts_Open_Data.csv')
+
+# Identify the top 5 neighborhoods with the most thefts
+top_neighborhoods <- bicycle_data %>%
+  filter(STATUS == "STOLEN") %>%
+  count(NEIGHBOURHOOD_158, sort = TRUE) %>%
+  slice_head(n = 5) %>%
+  pull(NEIGHBOURHOOD_158)
+
+# Filter for top neighborhoods and mutate month variable
+bicycle_data <- bicycle_data %>%
+  filter(NEIGHBOURHOOD_158 %in% top_neighborhoods) %>%
   mutate(
-    occurence_date = as_date(
-      OCC_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
+    OCC_MONTH1 = case_when(
+      OCC_MONTH == "January" ~ "1",
+      OCC_MONTH == "February" ~ "2",
+      OCC_MONTH == "March" ~ "3",
+      OCC_MONTH == "April" ~ "4",
+      OCC_MONTH == "May" ~ "5",
+      OCC_MONTH == "June" ~ "6",
+      OCC_MONTH == "July" ~ "7",
+      OCC_MONTH == "August" ~ "8",
+      OCC_MONTH == "September" ~ "9",
+      OCC_MONTH == "October" ~ "10",
+      OCC_MONTH == "November" ~ "11",
+      OCC_MONTH == "December" ~ "12"
     ),
-    report_date = as_date(
-      REPORT_DATE, format = "%a, %d %b %Y %H:%M:%S GMT"
-    )
+    OCC_MONTH1 = factor(OCC_MONTH1, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+  )
+
+# Plot theft counts by month for each top neighborhood in a single row with adjusted facet label settings
+ggplot(bicycle_data %>% filter(!is.na(OCC_MONTH1)), aes(x = OCC_MONTH1, fill = NEIGHBOURHOOD_158)) +
+  geom_bar(stat = "count", position = "dodge") +
+  labs(x = "Month", y = "Theft Count", title = "Monthly Bicycle Theft Counts in Top 5 Neighborhoods") +
+  facet_wrap(~ NEIGHBOURHOOD_158, ncol = 5, scales = "free_y") +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+    strip.text = element_text(size = 12) # Increase facet label size
   )
 ```
+The insights from this visualization suggest that cyclists should be particularly vigilant during the summer months. During these peak times, additional precautions such as using high-quality locks or parking in secure, monitored areas can serve as effective deterrents. The seasonal nature of these trends also implies that cyclists who ride year-round may experience lower risk during winter, when theft rates decrease. While this seasonal insight is valuable, it is equally important to consider the specific types of locations where bikes are stolen, as different premises can carry varying levels of risk.
+
+# Bicycle Theft by Premises Type and Time of Day
+In addition to understanding where and when bike thefts occur, examining the type of premises and time of day reveals more granular insights into theft risk. This stacked bar chart categorizes theft incidents by premises type—such as residential, commercial, or transit locations—and by the time of day they occur. These insights highlight the relationship between location type and theft risk throughout the day.
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Load the data
+data <- read.csv("data/Bicycle_Thefts_Open_Data.csv")
+
+# Extract time of day based on OCC_HOUR (assuming it's in a 24-hour format)
+data$Time_of_Day <- cut(
+  data$OCC_HOUR,
+  breaks = c(-Inf, 6, 12, 18, Inf),
+  labels = c("Night", "Morning", "Afternoon", "Evening")
+)
+
+# Reorder the factor levels of Time_of_Day
+data$Time_of_Day <- factor(data$Time_of_Day, levels = c("Morning", "Afternoon", "Evening", "Night"))
+
+# Calculate theft percentages by Premises_Type and Time_of_Day
+theft_data <- data %>%
+  filter(PRIMARY_OFFENCE == "THEFT UNDER") %>%
+  count(PREMISES_TYPE, Time_of_Day) %>%
+  group_by(PREMISES_TYPE) %>%
+  mutate(percentage = n / sum(n) * 100) %>%
+  ungroup()
+
+# Define a custom color palette
+custom_colors <- c("Morning" = "#F1C40F", 
+                   "Afternoon" = "#3498DB", 
+                   "Evening" = "#9B59B6", 
+                   "Night" = "#E74C3C")
+
+# Plot the data
+ggplot(theft_data, aes(x = percentage, y = PREMISES_TYPE, fill = Time_of_Day)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = custom_colors) +
+  guides(fill = guide_legend(reverse = TRUE)) +  # Reverse the legend order
+  labs(
+    title = "Bicycle Theft Percentage by Premises Type and Time of Day",
+    x = "Theft Percentage (%)",
+    y = "Premises Type"
+  ) +
+  theme_minimal()
+
+```
+At transit hubs, the highest theft rate occurs in the morning, nearing 40%, likely due to the high density of parked bikes during commuting hours and limited surveillance. Theft in outdoor and other public places is more prominent in the afternoon and morning, particularly in the afternoon, suggesting a higher risk in open spaces. Educational institutions see a theft peak in the afternoon, aligning with class and school dismissal times. Overall, the afternoon emerges as a high-risk period for theft, especially in outdoor and educational locations, reflecting increased bicycle use and theft opportunities during this time. Although nighttime theft is relatively low, residential and apartment areas show a higher proportion of thefts at night, likely due to bikes being left unattended. 
+These findings suggest that theft prevention strategies should be adapted to specific premises types and times of day. For instance, bikes parked outside at residential locations may need added security, particularly at night. Cyclists leaving their bikes in commercial or transit areas might consider parking in well-lit, visible spots during business hours. While premises type and time provide context for risk, an equally relevant factor is the type and value of the bike itself, as certain types are more frequently targeted.
+
+# Bike Type and Value - What Types of Bikes Are Most Targeted?
+Our final analysis delves into the types of bikes most frequently stolen, along with their associated price ranges. The radial heatmap displays the distribution of theft counts by bike type and cost, highlighting which bikes are particularly attractive to thieves. The visualization shows that high-value bikes—particularly those valued over $1000—are stolen more frequently than lower-cost models. Within this high-value category, certain types of bikes, such as road and mountain bikes, are more commonly targeted, likely due to their high resale value and popularity.
 
 ```{r}
 # Load necessary libraries
@@ -48,30 +191,46 @@ library(dplyr)
 # Load the dataset
 bike_thefts <- read.csv("data/Bicycle_Thefts_Open_Data.csv")
 
-# Count thefts by neighborhood and select top 10
-top_neighborhoods <- bike_thefts %>%
-  count(NEIGHBOURHOOD_158, sort = TRUE) %>%
-  top_n(10, wt = n)
+# Filter data to include bike type and cost, and remove missing values
+bike_data <- bike_thefts %>%
+  filter(!is.na(BIKE_TYPE), !is.na(BIKE_COST)) %>%
+  mutate(
+    Cost_Range = case_when(
+      BIKE_COST < 500 ~ "<$500",
+      BIKE_COST >= 500 & BIKE_COST < 1000 ~ "$500-$1000",
+      BIKE_COST >= 1000 & BIKE_COST < 2000 ~ "$1000-$2000",
+      BIKE_COST >= 2000 ~ ">$2000"
+    )
+  )
 
-# Plot top neighborhoods with highest theft rates
-ggplot(top_neighborhoods, aes(x = reorder(NEIGHBOURHOOD_158, n), y = n)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  coord_flip() +
-  labs(title = "Top 10 Neighborhoods for Bicycle Thefts in Toronto",
-       x = "Neighborhood", y = "Number of Thefts") +
-  theme_minimal()
+# Summarize data to get theft counts by bike type and cost range
+bike_summary <- bike_data %>%
+  group_by(BIKE_TYPE, Cost_Range) %>%
+  summarise(Theft_Count = n()) %>%
+  ungroup()
 
-# Count thefts by bike type
-bike_type_counts <- bike_thefts %>%
-  count(BIKE_TYPE, sort = TRUE)
+# Set factor levels for ordered appearance in radial plot
+bike_summary$Cost_Range <- factor(bike_summary$Cost_Range, levels = c("<$500", "$500-$1000", "$1000-$2000", ">$2000"))
+bike_summary$BIKE_TYPE <- factor(bike_summary$BIKE_TYPE, levels = unique(bike_summary$BIKE_TYPE))
 
-# Plot distribution of bike thefts by type
-ggplot(bike_type_counts, aes(x = reorder(BIKE_TYPE, n), y = n)) +
-  geom_bar(stat = "identity", fill = "coral") +
-  coord_flip() +
-  labs(title = "Distribution of Bicycle Thefts by Bike Type",
-       x = "Bike Type", y = "Number of Thefts") +
-  theme_minimal()
+# Plot the radial heatmap
+ggplot(bike_summary, aes(x = BIKE_TYPE, y = Cost_Range, fill = Theft_Count)) +
+  geom_tile(color = "white", width = 1) +
+  scale_fill_gradient(low = "yellow", high = "red", name = "Theft Count") +
+  coord_polar(theta = "x") +
+  labs(title = "Bike Theft Frequency by Type and Cost Range",
+       x = "", y = "Cost Range") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_blank(),
+    panel.grid = element_blank()
+  )
 
 ```
+
+# Conclusion
+Our analysis of bike theft data in Toronto reveals several important patterns that can help cyclists protect their bikes. Theft risk varies significantly based on location, timing, premises type, and bike characteristics. We found that downtown Toronto has the highest density of thefts, with particular neighborhoods showing concentrated hotspots. The risk of theft is highest during the summer months, likely due to the increase in cycling activity, while certain premises types and times of day present higher risks than others. Additionally, high-end bikes, especially road and mountain models, are prime targets for theft.
+With these insights, cyclists can take practical steps to reduce their risk of theft. Avoiding high-theft areas or choosing secure, monitored parking in these zones is recommended, especially during summer. Investing in high-quality locks, especially for high-value bikes, is an essential preventive measure. Cyclists should also consider the timing and location of their parking choices, as some times and premises types carry greater risk. Finally, owners of high-end bikes may find additional security options, such as GPS trackers or insurance, to be worthwhile investments.
+By applying these data-driven insights, Toronto’s cyclists can take proactive steps to safeguard their bikes. Sharing these findings within the cycling community can contribute to a safer environment, encouraging more people to embrace cycling as a sustainable and enjoyable mode of transport. Equipped with this knowledge, cyclists can feel more secure and confident, knowing they are making informed choices to protect their bikes.
 
